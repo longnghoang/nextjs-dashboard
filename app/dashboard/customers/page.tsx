@@ -1,3 +1,11 @@
-export default function Page() {
-  return <p>Customers Page</p>;
+import { fetchRevenue } from '@/app/lib/data';
+
+export default async function Page() {
+  const revenue = await fetchRevenue();
+  return (
+    <>
+      <p>Customers Page</p>
+      <div>{ revenue[0].revenue }</div>
+    </>
+  );
 }
