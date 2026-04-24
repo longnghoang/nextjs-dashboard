@@ -10,7 +10,7 @@ export default function Search({ placeholder }: { placeholder: string }) {
   const router = useRouter();
 
   const handleSearch = useDebouncedCallback((term) => {
-    console.log('Search query:', term, 'Current date: ', new Date());
+    // console.log('Search query:', term, 'Current date: ', new Date());
     const params = new URLSearchParams(searchParams);
 
     if (term) {
@@ -19,7 +19,7 @@ export default function Search({ placeholder }: { placeholder: string }) {
       params.delete('query');
     }
 
-    console.log('Current search params:', params.toString());
+    // console.log('Current search params:', params.toString());
     router.replace(`${pathname}?${params.toString()}`);
   }, 500);
   

@@ -9,7 +9,7 @@ import { fetchInvoicesPages } from '@/app/lib/data';
  
 export default async function Page(props: { searchParams?: Promise<{ query?: string; page?: string }> }) {
   const searchParams = await props.searchParams;
-  console.log('searchParams :', searchParams, 'Current date: ', new Date());
+  // console.log('searchParams :', searchParams, 'Current date: ', new Date());
   const query = searchParams?.query || '';
   const currentPage = Number(searchParams?.page) || 1;
   const totalPages = await fetchInvoicesPages(query);  
