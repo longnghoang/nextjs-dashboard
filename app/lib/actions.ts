@@ -7,22 +7,61 @@ import { redirect } from 'next/navigation';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
+export type State = {
+  errors?: {
+    customerId?: string[];
+    amount?: string[];
+    status?: string[];
+  };
+  message?: string | null;
+  payload?: {
+    amount?: number;
+    status?: 'pending' | 'paid';
+    customerId?: string;
+  };
+};
+
 const FormSchema = z.object({
   id: z.string(),
-  customerId: z.string(),  
-  amount: z.coerce.number(),
-  status: z.enum(['pending', 'paid']),
+  customerId: z.string({ invalid_type_error: 'Please select a customer.' }),
+  amount: z.coerce
+    .number()
+    .gt(0, { message: 'Amount must be greater than 0.' }),
+  status: z.enum(['pending', 'paid'], {
+    invalid_type_error: 'Please select a valid invoice status.',
+  }),
   date: z.string(),
 });
 
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 
-export async function createInvoice(formData: FormData) {
-  const { customerId, amount, status } = CreateInvoice.parse({
+export async function createInvoice(prevState: State, formData: FormData) {
+  // Validate form fields using Zod
+  const validatedFields = CreateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
     status: formData.get('status'),
   });
+
+  console.log('Validated Fields:', validatedFields);
+
+  // If form validation fails, return errors early. Otherwise, continue.
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Create Invoice.',
+      payload: {
+        customerId: formData.get('customerId')?.toString(),
+        amount: !!formData.get('amount')
+          ? parseFloat(formData.get('amount')?.toString() || '0')
+          : undefined,
+        status: formData.get('status') as 'pending' | 'paid' | undefined,
+      },
+    };
+  }
+
+  // Prepare data for insertion into the database
+  const { customerId, amount, status } = validatedFields.data;
   const amountInCents = Math.round(amount * 100);
   const date = new Date().toISOString().split('T')[0];
 
@@ -40,20 +79,43 @@ export async function createInvoice(formData: FormData) {
 
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
-};
+}
 
 // Use Zod to update the expected types
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
- 
-export async function updateInvoice(id: string, formData: FormData) {
-  const { customerId, amount, status } = UpdateInvoice.parse({
+
+export async function updateInvoice(
+  id: string,
+  prevState: State,
+  formData: FormData,
+) {
+  const validatedFields = UpdateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
     status: formData.get('status'),
   });
- 
+  console.log('Validated Fields:', validatedFields);
+
+  if (!validatedFields.success) {
+    const amountTmp = !!formData.get('amount')
+      ? parseFloat(formData.get('amount')?.toString() || '0')
+      : undefined;
+    console.log('Amount Temp:', amountTmp);
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Update Invoice.',
+      // return the form data so that the form can be pre-populated with the user's input
+      payload: {
+        amount: amountTmp,
+        status: formData.get('status') as 'pending' | 'paid' | undefined,
+        customerId: formData.get('customerId')?.toString(),
+      },
+    };
+  }
+
+  const { customerId, amount, status } = validatedFields.data;
   const amountInCents = amount * 100;
- 
+
   try {
     await sql`
       UPDATE invoices
@@ -66,10 +128,10 @@ export async function updateInvoice(id: string, formData: FormData) {
       message: 'Database Error: Failed to update invoice.',
     };
   }
-  
+
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
-};
+}
 
 export async function deleteInvoice(id: string) {
   try {
@@ -80,6 +142,6 @@ export async function deleteInvoice(id: string) {
       message: 'Database Error: Failed to delete invoice.',
     };
   }
-  
+
   revalidatePath('/dashboard/invoices');
-};
+}
